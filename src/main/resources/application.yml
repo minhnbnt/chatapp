@@ -1,0 +1,23 @@
+logging:
+  level:
+    root: INFO
+
+spring:
+  application:
+    name: chatapp
+
+  datasource:
+    driver-class-name: org.mariadb.jdbc.Driver
+    url: ${DB_URL}
+
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+    show-sql: true
+
+jwts:
+  secret-key: ${JWT_SECRET}
