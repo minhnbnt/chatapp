@@ -21,7 +21,7 @@ public class UserController {
     @PostMapping("/api/register")
     @ResponseStatus(HttpStatus.CREATED)
     public void register(@Valid @RequestBody UserDto dto) {
-        userService.registerUser(dto.username(), dto.password());
+        userService.registerUser(dto);
     }
 
     @PostMapping("/api/token")

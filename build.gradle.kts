@@ -38,6 +38,7 @@ dependencies {
 	runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.12.6")
 
 	runtimeOnly("org.bouncycastle:bcprov-jdk18on:1.78.1")
+	implementation("com.google.code.findbugs:jsr305:3.0.2")
 
 	annotationProcessor("org.projectlombok:lombok")
 

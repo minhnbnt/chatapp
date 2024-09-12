@@ -4,6 +4,10 @@ import com.group8.chatapp.dtos.UserDto;
 import com.group8.chatapp.models.User;
 import com.group8.chatapp.repositories.UserRepository;
 import lombok.RequiredArgsConstructor;
+import org.springframework.lang.Nullable;
+import org.springframework.security.authentication.AuthenticationProvider;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -17,28 +21,10 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final AuthenticationProvider authenticationProvider;
 
-    public Optional<UserDetails> getUserByDto(UserDto dto) {
-
-        var userRecord = userRepository.findByUsername(dto.username());
-
-        if (userRecord.isEmpty()) {
-            return Optional.empty();
-        }
-
-        var encodedPassword = userRecord.get().getPassword();
-        if (passwordEncoder.matches(dto.password(), encodedPassword)) {
-            return Optional.of(userRecord.get());
-        } else {
-            return Optional.empty();
-        }
-    }
-
-    public Optional<UserDetails> getUserByContext() {
-
-        var authentication = SecurityContextHolder
-                .getContext()
-                .getAuthentication();
+    private Optional<UserDetails>
+    getUserByAuthentication(@Nullable Authentication authentication) {
 
         if (authentication == null) {
             return Optional.empty();
@@ -52,12 +38,32 @@ public class UserService {
         }
     }
 
-    public void registerUser(String username, String password) {
+    public Optional<UserDetails> getUserByDto(UserDto dto) {
 
-        var hashedPassword = passwordEncoder.encode(password);
+        var authentication = authenticationProvider.authenticate(
+                new UsernamePasswordAuthenticationToken(
+                        dto.username(), dto.password()
+                )
+        );
+
+        return getUserByAuthentication(authentication);
+    }
+
+    public Optional<UserDetails> getUserByContext() {
+
+        var authentication = SecurityContextHolder
+                .getContext()
+                .getAuthentication();
+
+        return getUserByAuthentication(authentication);
+    }
+
+    public void registerUser(UserDto dto) {
+
+        var hashedPassword = passwordEncoder.encode(dto.password());
 
         var record = User.builder()
-                .username(username)
+                .username(dto.username())
                 .password(hashedPassword)
                 .build();
 
