@@ -19,7 +19,7 @@ public class JwtConfig {
 
     private SecretKey signature;
 
-    public SecretKey getSignInKey() {
+    private SecretKey getSignInKey() {
 
         if (signature == null) {
             var bytes = Decoders.BASE64.decode(secretKey);

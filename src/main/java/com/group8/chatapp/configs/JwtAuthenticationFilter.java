@@ -2,7 +2,6 @@ package com.group8.chatapp.configs;
 
 import com.group8.chatapp.services.jwts.JwtsParserService;
 import jakarta.servlet.FilterChain;
-import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
@@ -13,8 +12,6 @@ import org.springframework.security.web.authentication.WebAuthenticationDetailsS
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 import org.springframework.web.servlet.HandlerExceptionResolver;
-
-import java.io.IOException;
 
 @Component
 @RequiredArgsConstructor
@@ -35,41 +32,43 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         return authHeader.substring(7);
     }
 
+    private void setAuthenticationInfo(HttpServletRequest request) {
+
+        String token = getTokenFromRequest(request);
+        if (token == null) {
+            return;
+        }
+
+        var user = jwtsParserService
+                .getUserFromToken(token)
+                .orElse(null);
+
+        if (user == null) {
+            return;
+        }
+
+        var authToken = new UsernamePasswordAuthenticationToken(
+                user, null, user.getAuthorities()
+        );
+
+        var authDetail = authenticationDetailsSource.buildDetails(request);
+        authToken.setDetails(authDetail);
+
+        SecurityContextHolder
+                .getContext()
+                .setAuthentication(authToken);
+    }
+
     @Override
     protected void doFilterInternal(
             @NonNull HttpServletRequest request,
             @NonNull HttpServletResponse response,
             @NonNull FilterChain filterChain
-    ) throws ServletException, IOException {
-
-        String token = getTokenFromRequest(request);
-        if (token == null) {
-            filterChain.doFilter(request, response);
-            return;
-        }
+    ) {
 
         try {
 
-            var user = jwtsParserService
-                    .getUserFromToken(token)
-                    .orElse(null);
-
-            if (user == null) {
-                filterChain.doFilter(request, response);
-                return;
-            }
-
-            var authToken = new UsernamePasswordAuthenticationToken(
-                    user, null, user.getAuthorities()
-            );
-
-            var authDetail = authenticationDetailsSource.buildDetails(request);
-            authToken.setDetails(authDetail);
-
-            SecurityContextHolder
-                    .getContext()
-                    .setAuthentication(authToken);
-
+            setAuthenticationInfo(request);
             filterChain.doFilter(request, response);
 
         } catch (Exception e) {
