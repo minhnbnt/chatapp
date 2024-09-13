@@ -26,6 +26,9 @@ public class User implements UserDetails {
     @Column(nullable = false)
     private String password;
 
+    @ManyToMany
+    private List<ChatRoom> chatRooms;
+
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
         return List.of();

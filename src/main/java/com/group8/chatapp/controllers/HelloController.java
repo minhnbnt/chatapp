@@ -7,7 +7,6 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Map;
-import java.util.TreeMap;
 
 @RestController
 @RequiredArgsConstructor
@@ -27,9 +26,6 @@ public class HelloController {
             message = String.format("Hello, your username is %s.", username);
         }
 
-        var response = new TreeMap<String, String>();
-        response.put("message", message);
-
-        return response;
+        return Map.of("message", message);
     }
 }
