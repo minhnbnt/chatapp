@@ -18,16 +18,10 @@ public class JwtsBuilderService {
     private final JwtBuilder jwtBuilder;
 
     public Map<String, String> getTokenPair(UserDetails user) {
-
-        var accessToken = getTokenFromUser(user, false);
-        var refreshToken = getTokenFromUser(user, true);
-
-        var result = new TreeMap<String, String>();
-
-        result.put("access", accessToken);
-        result.put("refresh", refreshToken);
-
-        return result;
+        return Map.of(
+            "access", getTokenFromUser(user, false),
+            "refresh", getTokenFromUser(user, true)
+        );
     }
 
     private long getTokenLifetime(boolean isRefresh) {
