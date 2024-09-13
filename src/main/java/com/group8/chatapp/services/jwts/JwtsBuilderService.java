@@ -2,8 +2,10 @@ package com.group8.chatapp.services.jwts;
 
 import io.jsonwebtoken.JwtBuilder;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Date;
 import java.util.Map;
@@ -49,12 +51,21 @@ public class JwtsBuilderService {
         long issued = System.currentTimeMillis();
         long expiration = issued + lifetime;
 
-        return jwtBuilder
-                .claims(claims)
-                .subject(user.getUsername())
-                .issuedAt(new Date(issued))
-                .expiration(new Date(expiration))
-                .compact();
+        try {
+
+            return jwtBuilder
+                    .claims(claims)
+                    .subject(user.getUsername())
+                    .issuedAt(new Date(issued))
+                    .expiration(new Date(expiration))
+                    .compact();
+
+        } catch (RuntimeException e) {
+            throw new ResponseStatusException(
+                    HttpStatus.INTERNAL_SERVER_ERROR,
+                    "Unable to create the JWT token"
+            );
+        }
     }
 
 }

@@ -1,4 +1,4 @@
-package com.group8.chatapp.controllers;
+package com.group8.chatapp.controllers.exceptions;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.FieldError;
@@ -11,12 +11,11 @@ import java.util.Map;
 import java.util.TreeMap;
 
 @RestControllerAdvice
-public class ExceptionsController {
+public class BadRequestController {
 
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public Map<String, String>
-    handleValidationExceptions(MethodArgumentNotValidException e) {
+    public Map<String, ?> handleValidationExceptions(MethodArgumentNotValidException e) {
 
         Map<String, String> errors = new TreeMap<>();
 
