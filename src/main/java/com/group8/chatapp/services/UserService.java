@@ -9,7 +9,6 @@ import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -23,7 +22,7 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final AuthenticationProvider authenticationProvider;
 
-    private Optional<UserDetails>
+    private Optional<User>
     getUserByAuthentication(@Nullable Authentication authentication) {
 
         if (authentication == null) {
@@ -31,14 +30,14 @@ public class UserService {
         }
 
         var principal = authentication.getPrincipal();
-        if (principal instanceof UserDetails userDetails) {
-            return Optional.of(userDetails);
+        if (principal instanceof User user) {
+            return Optional.of(user);
         } else {
             return Optional.empty();
         }
     }
 
-    public Optional<UserDetails> getUserByDto(UserDto dto) {
+    public Optional<User> getUserByDto(UserDto dto) {
 
         var authentication = authenticationProvider.authenticate(
                 new UsernamePasswordAuthenticationToken(
@@ -49,7 +48,7 @@ public class UserService {
         return getUserByAuthentication(authentication);
     }
 
-    public Optional<UserDetails> getUserByContext() {
+    public Optional<User> getUserByContext() {
 
         var authentication = SecurityContextHolder
                 .getContext()
