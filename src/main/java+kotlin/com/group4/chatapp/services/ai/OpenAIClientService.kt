@@ -14,6 +14,12 @@ import java.net.http.HttpResponse
 import java.nio.charset.StandardCharsets
 import java.time.Duration
 
+/**
+ * Client service gọi backend LLM tương thích OpenAI.
+ *
+ * Service này tự xây request/parse response, hỗ trợ fallback model khi gặp
+ * rate limit, và chuẩn hóa cách gọi AI cho translation/summary.
+ */
 @Service
 class OpenAIClientService(
     @Value("\${agents.messages.base-url:}") private val llmBaseUrl: String,
@@ -33,6 +39,19 @@ class OpenAIClientService(
 
     private val objectMapper = ObjectMapper()
 
+    /**
+     * Gửi yêu cầu sinh text tới dịch vụ AI.
+     *
+     * Behavior của method:
+     * - Thử model chính trước, sau đó dùng model fallback nếu gặp rate limit.
+     * - Nếu dịch vụ trả về lỗi khác rate limit, ném lỗi ngay.
+     * - Nếu phản hồi không có text hợp lệ, ném `BAD_GATEWAY`.
+     *
+     * @param prompt Prompt gồm system/user message.
+     * @param serviceName Tên logical của service gọi AI để đưa vào log/lỗi.
+     * @param temperature Tham số độ ngẫu nhiên của model.
+     * @return Text trả về từ AI.
+     */
     fun requestText(
         prompt: PromptService.PromptSpec,
         serviceName: String,
@@ -68,6 +87,21 @@ class OpenAIClientService(
         )
     }
 
+    /**
+     * Gửi request tới model cụ thể và parse nội dung phản hồi.
+     *
+     * Behavior của method:
+     * - Tạo HTTP POST tới endpoint completions.
+     * - Kiểm tra mã trạng thái HTTP.
+     * - Trích text từ `choices[].message.content`.
+     * - Ném lỗi nếu response không hợp lệ.
+     *
+     * @param prompt Prompt cần gửi.
+     * @param serviceName Tên service để gắn vào lỗi.
+     * @param temperature Độ ngẫu nhiên.
+     * @param model Tên model cụ thể.
+     * @return Text AI trả về.
+     */
     private fun requestTextWithModel(
         prompt: PromptService.PromptSpec,
         serviceName: String,
@@ -116,6 +150,15 @@ class OpenAIClientService(
         return result
     }
 
+    /**
+     * Tạo danh sách model ứng viên để thử gọi AI.
+     *
+     * Behavior của method:
+     * - Luôn ưu tiên model chính.
+     * - Chỉ thêm fallback nếu khác model chính và không rỗng.
+     *
+     * @return Danh sách model theo thứ tự thử.
+     */
     private fun buildCandidateModels(): List<String> {
         val primary = requireModel()
         val fallback = llmFallbackModel.trim()
@@ -126,6 +169,11 @@ class OpenAIClientService(
         return listOf(primary, fallback)
     }
 
+    /**
+     * Tạo URI endpoint completions từ base URL cấu hình.
+     *
+     * @return URI tới endpoint chat/completions.
+     */
     private fun buildCompletionsUri(): URI {
         val baseUrl = llmBaseUrl.trim()
         if (baseUrl.isEmpty()) {
@@ -136,6 +184,16 @@ class OpenAIClientService(
         return URI.create(baseUrl + separator + "chat/completions")
     }
 
+    /**
+     * Tạo JSON body cho request completions.
+     *
+     * Body gồm model, temperature, system prompt và user prompt.
+     *
+     * @param prompt Prompt cần gửi.
+     * @param temperature Độ ngẫu nhiên.
+     * @param model Tên model.
+     * @return JSON body dạng chuỗi.
+     */
     private fun buildRequestBody(
         prompt: PromptService.PromptSpec,
         temperature: Double,
@@ -156,6 +214,11 @@ class OpenAIClientService(
         return objectMapper.writeValueAsString(root)
     }
 
+    /**
+     * Kiểm tra và lấy API key hợp lệ.
+     *
+     * @return API key đã được trim.
+     */
     private fun requireApiKey(): String {
         val apiKey = llmApiKey.trim()
         if (apiKey.isEmpty()) {
@@ -165,6 +228,11 @@ class OpenAIClientService(
         return apiKey
     }
 
+    /**
+     * Kiểm tra và lấy model chính hợp lệ.
+     *
+     * @return Tên model đã được trim.
+     */
     private fun requireModel(): String {
         val model = llmModel.trim()
         if (model.isEmpty()) {
@@ -177,10 +245,26 @@ class OpenAIClientService(
         return model
     }
 
+    /**
+     * Tính timeout cho request AI.
+     *
+     * @return Timeout tối thiểu 10 giây.
+     */
     private fun resolveRequestTimeout(): Duration {
         return Duration.ofSeconds(maxOf(llmRequestTimeoutSeconds, 10).toLong())
     }
 
+    /**
+     * Trích phần text từ node content của phản hồi AI.
+     *
+     * Behavior của method:
+     * - Hỗ trợ content dạng string trực tiếp.
+     * - Hỗ trợ content dạng mảng các đoạn text.
+     * - Bỏ qua các segment không có text.
+     *
+     * @param contentNode Node JSON chứa nội dung trả về.
+     * @return Chuỗi text đã ghép.
+     */
     private fun extractMessageText(contentNode: JsonNode?): String {
         if (contentNode == null || contentNode.isNull) {
             return ""

@@ -8,12 +8,30 @@ import org.springframework.http.HttpStatus
 import org.springframework.stereotype.Service
 import java.util.Collections
 
+/**
+ * Service tóm tắt hội thoại bằng AI và fallback nội bộ khi cần.
+ *
+ * Service này chuẩn hóa dữ liệu đầu vào, cache kết quả summary, và có cơ chế
+ * dự phòng để vẫn trả về nội dung hữu ích khi AI không sẵn sàng.
+ */
 @Service
 class SummaryService(
     private val openAIClientService: OpenAIClientService,
     private val promptService: PromptService
 ) {
 
+    /**
+     * Tóm tắt danh sách tin nhắn của một phòng chat.
+     *
+     * Behavior của method:
+     * - Chuẩn hóa danh sách tin nhắn và tên phòng.
+     * - Trả về kết quả từ cache nếu đã có.
+     * - Gọi AI để tạo summary khi cache miss.
+     * - Nếu AI lỗi, dùng fallback summary nội bộ và cache kết quả.
+     *
+     * @param dto Request chứa các tin nhắn cần tóm tắt.
+     * @return Summary DTO kèm số lượng tin nhắn đã xử lý.
+     */
     fun summarize(dto: MessageSummarizeRequestDto): MessageSummaryDto {
 
         val summaryMessages = normalizeSummaryMessages(dto.messages())
@@ -40,6 +58,20 @@ class SummaryService(
         }
     }
 
+    /**
+     * Tạo summary dự phòng khi AI không hoạt động.
+     *
+     * Behavior của method:
+     * - Ghi log nguyên nhân lỗi.
+     * - Tạo bản recap ngắn từ các tin nhắn gần nhất.
+     * - Cache kết quả fallback để tránh lặp lại xử lý.
+     *
+     * @param summaryMessages Danh sách tin nhắn đã chuẩn hóa.
+     * @param roomName Tên phòng chat.
+     * @param cacheKey Khóa cache summary.
+     * @param cause Exception gốc gây fallback.
+     * @return Summary DTO dạng fallback.
+     */
     private fun fallbackSummary(
         summaryMessages: List<String>,
         roomName: String,
@@ -74,6 +106,13 @@ class SummaryService(
             .also { summaryCache[cacheKey] = it }
     }
 
+    /**
+     * Rút gọn một dòng fallback để tránh quá dài.
+     *
+     * @param value Nội dung cần rút gọn.
+     * @param maxLength Độ dài tối đa.
+     * @return Chuỗi đã cắt gọn.
+     */
     private fun compactFallbackLine(value: String?, maxLength: Int): String {
         val normalized = value?.replace('\n', ' ')?.trim().orEmpty()
         if (normalized.length <= maxLength) {
@@ -83,6 +122,17 @@ class SummaryService(
         return normalized.substring(0, maxLength - 3).trim() + "..."
     }
 
+    /**
+     * Chuẩn hóa danh sách tin nhắn đầu vào cho summary.
+     *
+     * Behavior của method:
+     * - Bắt buộc phải có ít nhất một tin nhắn.
+     * - Loại chuỗi rỗng, trim và cắt độ dài mỗi message.
+     * - Giới hạn số message lấy từ cuối danh sách.
+     *
+     * @param rawMessages Danh sách tin nhắn thô.
+     * @return Danh sách tin nhắn đã chuẩn hóa.
+     */
     private fun normalizeSummaryMessages(rawMessages: List<String>?): List<String> {
         if (rawMessages.isNullOrEmpty()) {
             throw ApiException(
@@ -107,6 +157,12 @@ class SummaryService(
         return normalized.takeLast(SUMMARY_MESSAGE_LIMIT)
     }
 
+    /**
+     * Chuẩn hóa tên phòng chat.
+     *
+     * @param roomName Tên phòng thô.
+     * @return Tên phòng đã trim và giới hạn độ dài.
+     */
     private fun normalizeRoomName(roomName: String?): String {
         val normalized = roomName?.trim().orEmpty()
         if (normalized.isEmpty()) {
@@ -116,6 +172,13 @@ class SummaryService(
         return normalized.take(120)
     }
 
+    /**
+     * Tạo khóa cache cho summary.
+     *
+     * @param summaryMessages Danh sách tin nhắn đã chuẩn hóa.
+     * @param roomName Tên phòng đã chuẩn hóa.
+     * @return Chuỗi khóa cache.
+     */
     private fun buildSummaryCacheKey(
         summaryMessages: List<String>,
         roomName: String

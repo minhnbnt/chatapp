@@ -11,9 +11,25 @@ import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.List;
 
+/**
+ * Cấu hình hỗ trợ định dạng MessagePack trong HTTP response/request.
+ *
+ * Class này đăng ký message converter để Spring có thể đọc và ghi dữ liệu
+ * theo kiểu MessagePack bên cạnh JSON mặc định.
+ */
 @Configuration
 public class MsgpackConfig implements WebMvcConfigurer {
 
+    /**
+     * Tạo converter cho MessagePack.
+     *
+     * Behavior của method:
+     * - Dùng `MessagePackMapper` để serialize/deserialize dữ liệu nhị phân.
+     * - Hỗ trợ các media type `application/msgpack` và `application/x-msgpack`.
+     * - Giữ hành vi JSON/Jackson tương thích với converter hiện có của Spring.
+     *
+     * @return HTTP message converter có thể xử lý payload MessagePack.
+     */
     @Bean
     public HttpMessageConverter<?> msgpackMessageConverter() {
 
@@ -33,6 +49,13 @@ public class MsgpackConfig implements WebMvcConfigurer {
         return messageConverter;
     }
 
+    /**
+     * Thiết lập media type mặc định của ứng dụng.
+     *
+     * Nếu client không yêu cầu kiểu dữ liệu cụ thể, ứng dụng sẽ ưu tiên JSON.
+     *
+     * @param configurer Cấu hình content negotiation của Spring MVC.
+     */
     @Override
     public void configureContentNegotiation(ContentNegotiationConfigurer configurer) {
         configurer.defaultContentType(MediaType.APPLICATION_JSON);

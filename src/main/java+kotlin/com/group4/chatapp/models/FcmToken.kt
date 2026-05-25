@@ -4,6 +4,12 @@ import jakarta.persistence.*
 import org.hibernate.annotations.CreationTimestamp
 import java.sql.Timestamp
 
+/**
+ * Entity lưu FCM token của một người dùng trên một thiết bị.
+ *
+ * Mỗi bản ghi đại diện cho một token có thể được dùng để gửi push notification,
+ * đồng thời theo dõi thời điểm tạo và lần sử dụng gần nhất để dọn dẹp token cũ.
+ */
 @Entity
 @Table(name = "fcm_tokens", uniqueConstraints = [
     UniqueConstraint(columnNames = ["user_id", "token"])

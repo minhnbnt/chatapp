@@ -9,6 +9,11 @@ import java.sql.Timestamp;
 import java.util.List;
 import java.util.Objects;
 
+/**
+ * DTO biểu diễn tin nhắn đã được gửi/nhận để trả về cho client.
+ *
+ * DTO này chứa sender, nội dung, attachments và danh sách người đã xem tin nhắn.
+ */
 public record MessageReceiveDto(
     long id,
     String sender,
@@ -19,6 +24,16 @@ public record MessageReceiveDto(
     List<UserWithAvatarDto> seenBy
 ) {
 
+    /**
+     * Tạo DTO từ entity ChatMessage.
+     *
+     * Behavior của method:
+     * - Sao chép sender, nội dung và thời gian gửi.
+     * - Chuyển attachments sang DTO và loại bỏ phần tử null.
+     * - Khởi tạo seenBy rỗng.
+     *
+     * @param message Entity tin nhắn nguồn.
+     */
     public MessageReceiveDto(ChatMessage message) {
 
         this(
@@ -36,6 +51,16 @@ public record MessageReceiveDto(
         );
     }
 
+    /**
+     * Tạo DTO từ entity ChatMessage kèm danh sách người đã xem.
+     *
+     * Behavior của method:
+     * - Sao chép dữ liệu tin nhắn như constructor một tham số.
+     * - Chuyển danh sách người đã xem sang DTO avatar.
+     *
+     * @param message Entity tin nhắn nguồn.
+     * @param seenByUsers Danh sách user đã xem tin nhắn.
+     */
     public MessageReceiveDto(ChatMessage message, List<User> seenByUsers) {
 
         this(

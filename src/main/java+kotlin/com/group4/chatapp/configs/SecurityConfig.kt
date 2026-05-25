@@ -20,6 +20,12 @@ import org.springframework.security.web.SecurityFilterChain
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
 
+/**
+ * Cấu hình bảo mật cho API HTTP của ứng dụng.
+ *
+ * Class này thiết lập cơ chế xác thực bằng Basic Auth và JWT, cấu hình CORS,
+ * và khai báo các route nào yêu cầu đăng nhập trước khi truy cập.
+ */
 @Configuration
 @EnableWebSecurity
 class SecurityConfig
@@ -30,10 +36,35 @@ class SecurityConfig
 
 ) {
 
+    /**
+     * Tải người dùng theo username phục vụ xác thực bằng database.
+     *
+     * Behavior của method:
+     * - Tìm user theo username trong repository.
+     * - Nếu không tồn tại, ném `UsernameNotFoundException`.
+     * - Dùng làm nguồn dữ liệu cho `DaoAuthenticationProvider`.
+     *
+     * @param username Tên đăng nhập cần tra cứu.
+     * @return Người dùng tương ứng với username.
+     */
     private fun loadByUsername(username: String) =
         userRepository.findByUsername(username)
             .orElseThrow { UsernameNotFoundException("User not found") }
 
+    /**
+     * Tạo security filter chain cho toàn bộ HTTP request.
+     *
+     * Behavior của method:
+     * - Bật Basic Auth và JWT resource server.
+     * - Tắt CSRF cho API.
+     * - Cho phép CORS với mọi method và origin pattern `*`.
+     * - Bảo vệ các endpoint nhạy cảm như messages, chatbot, invitations,
+     *   profile cá nhân, chặn người dùng, đổi mật khẩu, và speech-to-text.
+     * - Các request còn lại được phép truy cập công khai.
+     *
+     * @param http Đối tượng cấu hình `HttpSecurity` của Spring Security.
+     * @return `SecurityFilterChain` đã được xây dựng.
+     */
     @Bean
     fun filterChain(http: HttpSecurity): SecurityFilterChain {
 
@@ -79,17 +110,39 @@ class SecurityConfig
         return http.build()
     }
 
+    /**
+     * Tạo password encoder cho mật khẩu người dùng.
+     *
+     * @return `Argon2PasswordEncoder` theo cấu hình mặc định của Spring Security.
+     */
     @Bean
     fun passwordEncoder() = Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8()
 
+    /**
+     * Tạo provider xác thực dựa trên username/password từ database.
+     *
+     * @param passwordEncoder Bộ mã hóa mật khẩu dùng để so khớp password.
+     * @return `DaoAuthenticationProvider` được gắn nguồn user và password encoder.
+     */
     @Bean
     fun daoAuthenticationProvider(passwordEncoder: PasswordEncoder) =
         DaoAuthenticationProvider(this::loadByUsername)
             .apply { setPasswordEncoder(passwordEncoder) }
 
+    /**
+     * Tạo provider xác thực JWT cho resource server.
+     *
+     * @return `JwtAuthenticationProvider` dùng `jwtDecoder` đã cấu hình.
+     */
     @Bean
     fun jwtAuthenticationProvider() = JwtAuthenticationProvider(jwtDecoder)
 
+    /**
+     * Gộp các authentication provider thành authentication manager.
+     *
+     * @param providers Danh sách provider được Spring inject vào.
+     * @return `ProviderManager` dùng để xử lý xác thực.
+     */
     @Bean
     fun authenticationManager(providers: List<AuthenticationProvider>) =
         ProviderManager(providers)

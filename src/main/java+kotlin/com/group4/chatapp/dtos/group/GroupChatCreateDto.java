@@ -8,6 +8,11 @@ import org.jspecify.annotations.Nullable;
 
 import java.util.List;
 
+/**
+ * DTO dùng để tạo mới một group chat.
+ *
+ * DTO này chứa tên nhóm, danh sách member ban đầu và avatar tùy chọn.
+ */
 @Schema(description = "Request to create a new group chat")
 public record GroupChatCreateDto(
 

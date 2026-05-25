@@ -11,6 +11,13 @@ import java.io.ByteArrayInputStream
 import java.io.FileInputStream
 import java.util.Optional
 
+/**
+ * Cấu hình khởi tạo Firebase cho hệ thống thông báo đẩy.
+ *
+ * Class này tạo `FirebaseApp` khi ứng dụng được cấu hình bằng service account.
+ * Nếu không có cấu hình hợp lệ, bean trả về `Optional.empty()` để hệ thống
+ * có thể chạy mà không bật tính năng Firebase.
+ */
 @Configuration
 class FirebaseConfig {
 
@@ -22,6 +29,19 @@ class FirebaseConfig {
     @Value("\${firebase.service-account-path:}")
     private lateinit var serviceAccountPath: String
 
+    /**
+     * Khởi tạo bean FirebaseApp nếu ứng dụng được cấu hình credentials hợp lệ.
+     *
+     * Behavior của method:
+     * - Nếu không có JSON hoặc file service account, trả về `Optional.empty()`.
+     * - Nếu có JSON, tạo credentials trực tiếp từ nội dung JSON.
+     * - Nếu có path tới file, đọc file rồi tạo credentials từ nội dung đó.
+     * - Nếu khởi tạo thất bại vì lỗi cấu hình hoặc lỗi đọc credentials, trả về
+     *   `Optional.empty()` và ghi log lỗi tương ứng.
+     *
+     * @return `Optional` chứa `FirebaseApp` khi khởi tạo thành công, hoặc rỗng
+     *         khi Firebase không được cấu hình hoặc gặp lỗi.
+     */
     @Bean
     fun firebaseApp(): Optional<FirebaseApp> {
         val isEnabled = serviceAccountJson.isNotBlank() || serviceAccountPath.isNotBlank()

@@ -12,6 +12,12 @@ import org.jspecify.annotations.Nullable;
 import java.sql.Timestamp;
 import java.util.List;
 
+/**
+ * DTO biểu diễn chi tiết một group chat.
+ *
+ * DTO này cung cấp thông tin nhóm, avatar, thành viên, trạng thái admin/owner
+ * và tin nhắn gần nhất để client render màn hình group chat.
+ */
 @Schema(description = "Group chat details response")
 public class GroupChatDto {
 
@@ -42,8 +48,25 @@ public class GroupChatDto {
     @Schema(description = "Is current user the group creator")
     private boolean isOwner;
 
+    /**
+     * Tạo DTO rỗng cho serializer/deserializer.
+     */
     public GroupChatDto() {}
 
+    /**
+     * Tạo DTO từ room và dữ liệu bổ sung của group.
+     *
+     * Behavior của method:
+     * - Sao chép thông tin room và member list vào DTO.
+     * - Chuyển avatar và latestMessage sang DTO nếu có.
+     * - Ghi nhận trạng thái admin và owner của user hiện tại.
+     *
+     * @param room Phòng chat nguồn.
+     * @param latestMessage Tin nhắn gần nhất, có thể null.
+     * @param members Danh sách thành viên đã được dựng DTO.
+     * @param isAdmin Người dùng hiện tại có quyền admin hay không.
+     * @param isOwner Người dùng hiện tại có phải chủ nhóm hay không.
+     */
     public GroupChatDto(
         ChatRoom room,
         @Nullable ChatMessage latestMessage,

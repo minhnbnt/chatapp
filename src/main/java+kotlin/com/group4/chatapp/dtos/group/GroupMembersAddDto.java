@@ -7,6 +7,11 @@ import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
+/**
+ * DTO dùng để thêm thành viên vào group chat.
+ *
+ * DTO này mang danh sách userId cần được thêm vào nhóm.
+ */
 @Schema(description = "Request to add members to a group")
 public record GroupMembersAddDto(
 

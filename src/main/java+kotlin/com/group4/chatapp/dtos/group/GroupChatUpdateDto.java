@@ -4,6 +4,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Size;
 import org.jspecify.annotations.Nullable;
 
+/**
+ * DTO dùng để cập nhật thông tin group chat.
+ *
+ * DTO này cho phép đổi tên nhóm và/hoặc thay avatar bằng attachment ID.
+ */
 @Schema(description = "Request to update group chat information")
 public record GroupChatUpdateDto(
 

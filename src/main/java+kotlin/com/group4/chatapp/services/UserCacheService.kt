@@ -8,6 +8,12 @@ import org.springframework.stereotype.Service
 import java.time.Duration
 import java.util.Optional
 
+/**
+ * Service cache thông tin user trong Redis để giảm truy vấn database.
+ *
+ * Cache này được dùng cho các thao tác đọc user theo username và có cơ chế
+ * fallback sang repository nếu Redis không khả dụng.
+ */
 @Service
 class UserCacheService(
     private val userRepository: UserRepository,
@@ -18,6 +24,17 @@ class UserCacheService(
 
     private fun keyForUsername(username: String) = "auth:user:$username"
 
+    /**
+     * Lấy user từ cache, nếu không có thì fallback sang database.
+     *
+     * Behavior của method:
+     * - Đọc hash Redis theo username.
+     * - Nếu có dữ liệu hợp lệ, dựng lại một object `User` tối giản.
+     * - Nếu cache miss hoặc Redis lỗi, truy vấn repository và cache lại kết quả.
+     *
+     * @param username Username cần tra cứu.
+     * @return `Optional` chứa user nếu tìm thấy.
+     */
     fun getCachedUser(username: String): Optional<User> {
         try {
             val key = keyForUsername(username)
@@ -39,6 +56,16 @@ class UserCacheService(
         return user
     }
 
+    /**
+     * Ghi một user vào cache Redis.
+     *
+     * Behavior của method:
+     * - Lưu id, username và displayName dưới dạng hash.
+     * - Đặt TTL một giờ cho cache entry.
+     * - Nếu Redis lỗi, chỉ ghi cảnh báo.
+     *
+     * @param user User cần cache.
+     */
     fun cacheUser(user: User) {
         try {
             val key = keyForUsername(user.username)
@@ -52,6 +79,15 @@ class UserCacheService(
         }
     }
 
+    /**
+     * Xóa cache user theo username.
+     *
+     * Behavior của method:
+     * - Xóa key Redis tương ứng với username.
+     * - Nếu Redis lỗi, chỉ ghi cảnh báo.
+     *
+     * @param username Username cần invalidate.
+     */
     fun invalidateUserCache(username: String) {
         try {
             redisTemplate.delete(keyForUsername(username))

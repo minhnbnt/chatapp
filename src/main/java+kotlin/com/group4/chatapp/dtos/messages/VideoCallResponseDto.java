@@ -5,6 +5,11 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+/**
+ * DTO trả về thông tin cần thiết cho một phiên gọi video.
+ *
+ * DTO này chứa channelName, token, roomId và uid để client tham gia cuộc gọi.
+ */
 @Data
 @Builder
 @NoArgsConstructor

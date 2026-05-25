@@ -6,6 +6,11 @@ import org.springframework.mail.SimpleMailMessage
 import org.springframework.mail.javamail.JavaMailSender
 import org.springframework.stereotype.Service
 
+/**
+ * Service gửi email cho các luồng thông báo của hệ thống.
+ *
+ * Hiện tại service này dùng để gửi email reset mật khẩu cho người dùng.
+ */
 @Service
 class EmailService(
     private val mailSender: JavaMailSender,
@@ -19,6 +24,19 @@ class EmailService(
 
     private val logger = LoggerFactory.getLogger(EmailService::class.java)
 
+    /**
+     * Gửi email chứa liên kết đặt lại mật khẩu cho người dùng.
+     *
+     * Behavior của method:
+     * - Tạo reset link từ URL frontend và token.
+     * - Nếu cấu hình `from` tồn tại thì gán địa chỉ gửi.
+     * - Soạn nội dung email hướng dẫn người dùng đổi mật khẩu.
+     * - Gửi email qua `JavaMailSender` và ghi log khi thành công.
+     *
+     * @param username Tên người dùng nhận email.
+     * @param recipientEmail Địa chỉ email đích.
+     * @param resetToken Mã token dùng cho liên kết reset mật khẩu.
+     */
     fun sendPasswordResetEmail(username: String, recipientEmail: String, resetToken: String) {
         val resetLink = "$passwordResetFrontendUrl?token=$resetToken"
 

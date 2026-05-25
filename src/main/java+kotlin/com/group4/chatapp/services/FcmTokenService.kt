@@ -9,6 +9,12 @@ import java.sql.Timestamp
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 
+/**
+ * Service quản lý FCM token của người dùng.
+ *
+ * Service này chịu trách nhiệm đăng ký token, cập nhật thời điểm sử dụng,
+ * truy xuất token để gửi thông báo và dọn dẹp token cũ hoặc không hợp lệ.
+ */
 @Service
 class FcmTokenService(
     private val fcmTokenRepository: FcmTokenRepository,
@@ -21,6 +27,18 @@ class FcmTokenService(
         private const val TOKEN_RETENTION_DAYS = 30L
     }
 
+    /**
+     * Đăng ký hoặc cập nhật FCM token cho người dùng hiện tại.
+     *
+     * Behavior của method:
+     * - Lấy user hiện tại từ ngữ cảnh xác thực.
+     * - Nếu token đã tồn tại của chính user đó, cập nhật `lastUsed`.
+     * - Nếu token đã tồn tại ở user khác, xóa bản ghi cũ rồi lưu lại cho user hiện tại.
+     * - Sau khi lưu, giới hạn số token tối đa mỗi user.
+     * - Nếu có lỗi, ghi log và ném lại exception.
+     *
+     * @param token FCM token được client gửi lên.
+     */
     @Transactional
     fun registerToken(token: String) {
         try {
@@ -54,6 +72,17 @@ class FcmTokenService(
         }
     }
 
+    /**
+     * Lấy danh sách token FCM của một user.
+     *
+     * Behavior của method:
+     * - Trả về token theo thứ tự `lastUsed` mới nhất trước.
+     * - Loại trùng token trong kết quả trả về.
+     * - Nếu có lỗi truy xuất dữ liệu, trả về danh sách rỗng.
+     *
+     * @param userId ID của người dùng cần lấy token.
+     * @return Danh sách token hợp lệ, không trùng.
+     */
     fun getTokensForUser(userId: Long): List<String> {
         return try {
             fcmTokenRepository
@@ -66,6 +95,16 @@ class FcmTokenService(
         }
     }
 
+    /**
+     * Lấy token FCM cho nhiều user cùng lúc.
+     *
+     * Behavior của method:
+     * - Trả về map với key là userId và value là danh sách token của user đó.
+     * - Nếu truy vấn thất bại, trả về map rỗng.
+     *
+     * @param userIds Danh sách user ID cần truy xuất token.
+     * @return Map userId -> danh sách token.
+     */
     fun getTokensForUsers(userIds: List<Long>): Map<Long, List<String>> {
         return try {
             fcmTokenRepository.findByUserIdIn(userIds)
@@ -76,6 +115,16 @@ class FcmTokenService(
         }
     }
 
+    /**
+     * Xóa các token FCM đã quá hạn lưu giữ.
+     *
+     * Behavior của method:
+     * - Xác định mốc cắt theo số ngày retention.
+     * - Xóa các token có `lastUsed` trước mốc này.
+     * - Trả về số bản ghi đã xóa; nếu lỗi thì trả về 0.
+     *
+     * @return Số token đã bị xóa.
+     */
     @Transactional
     fun pruneInactiveTokens(): Long {
         val cutoff = Timestamp.from(Instant.now().minus(TOKEN_RETENTION_DAYS, ChronoUnit.DAYS))
@@ -91,6 +140,16 @@ class FcmTokenService(
         }
     }
 
+    /**
+     * Xóa một token không hợp lệ của user.
+     *
+     * Behavior của method:
+     * - Xóa token theo cặp userId và token.
+     * - Nếu gặp lỗi khi xóa, chỉ ghi log và không làm dừng luồng chính.
+     *
+     * @param userId ID người dùng sở hữu token.
+     * @param token Token cần xóa.
+     */
     fun deleteInvalidToken(userId: Long, token: String) {
         try {
             fcmTokenRepository.deleteByUserIdAndToken(userId, token)
@@ -100,6 +159,15 @@ class FcmTokenService(
         }
     }
 
+    /**
+     * Giới hạn số token lưu cho một user.
+     *
+     * Behavior của method:
+     * - Lấy danh sách token của user theo thứ tự lastUsed mới nhất.
+     * - Nếu số token vượt quá giới hạn, xóa các token cũ nhất.
+     *
+     * @param userId ID người dùng cần prune token.
+     */
     private fun pruneUserTokens(userId: Long) {
         val tokens = fcmTokenRepository.findAllByUserIdOrderByLastUsedDesc(userId)
         if (tokens.size <= MAX_TOKENS_PER_USER) {
