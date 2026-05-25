@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
@@ -12,8 +12,7 @@ WORKDIR /app
 
 COPY requirements.txt ./requirements.txt
 RUN pip install --upgrade pip \
-    && pip install "setuptools<81" wheel \
-    && pip install --no-build-isolation -r requirements.txt
+    && pip install -r requirements.txt
 
 COPY app.py ./app.py
 

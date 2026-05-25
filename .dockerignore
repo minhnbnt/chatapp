@@ -36,3 +36,4 @@ src/test
 !README.md
 
 .postgres/
+.opencode/

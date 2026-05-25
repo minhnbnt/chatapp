@@ -1,0 +1,21 @@
+{
+  "name": "k6",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "latency:http": "k6 run scripts/latency-http.js",
+    "latency:ws": "k6 run scripts/latency-websocket.js",
+    "stress": "k6 run scripts/stress-chat.js",
+    "latency:http:influx": "k6 run --out influxdb=http://localhost:8086/k6 scripts/latency-http.js",
+    "latency:ws:influx": "k6 run --out influxdb=http://localhost:8086/k6 scripts/latency-websocket.js",
+    "stress:influx": "k6 run --out influxdb=http://localhost:8086/k6 scripts/stress-chat.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@10.33.0",
+  "devDependencies": {
+    "@types/k6": "^2.0.0"
+  }
+}

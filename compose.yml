@@ -53,35 +53,24 @@ services:
       timeout: 5s
       retries: 3
 
-  # whisper:
-  #   build:
-  #     context: ./whisper_service
-  #     dockerfile: Dockerfile
-  #
-  #   container_name: chatapp-whisper
-  #
-  #   env_file:
-  #     - ./.env
-  #
-  #   environment:
-  #     WHISPER_MODEL: ${WHISPER_MODEL:-small}
-  #     WHISPER_CACHE_DIR: ${WHISPER_CACHE_DIR:-/cache/whisper}
-  #     WHISPER_DEFAULT_LANGUAGE: ${WHISPER_DEFAULT_LANGUAGE:-auto}
-  #     WHISPER_MAX_AUDIO_SIZE_BYTES: ${WHISPER_MAX_AUDIO_SIZE_BYTES:-12582912}
-  #     WHISPER_FP16: ${WHISPER_FP16:-false}
-  #
-  #   volumes:
-  #     - whisper_model_cache:/cache/whisper
-  #
-  #   ports:
-  #     - "8000:8000"
-  #
-  #   healthcheck:
-  #     test: ["CMD", "python", "-c", "import urllib; urllib.request.urlopen('http://localhost:8000/health', timeout=2).read()"]
-  #     interval: 15s
-  #     timeout: 5s
-  #     start_period: 5m
-  #     retries: 20
+  whisper:
+    build:
+      context: ./whisper_service
+      dockerfile: Dockerfile
+
+    container_name: chatapp-whisper
+
+    env_file:
+      - ./.env
+
+    environment:
+      GROQ_API_KEY: ${GROQ_API_KEY}
+      GROQ_WHISPER_MODEL: ${GROQ_WHISPER_MODEL:-whisper-large-v3-turbo}
+      WHISPER_DEFAULT_LANGUAGE: ${WHISPER_DEFAULT_LANGUAGE:-auto}
+      WHISPER_MAX_AUDIO_SIZE_BYTES: ${WHISPER_MAX_AUDIO_SIZE_BYTES:-12582912}
+
+    ports:
+      - "8000:8000"
 
   redis:
     image: redis:8-alpine
@@ -131,6 +120,21 @@ services:
         condition: service_healthy
       versitygw:
         condition: service_healthy
+
+  pgadmin:
+    image: dpage/pgadmin4:9
+    container_name: pgadmin4
+
+    environment:
+      PGADMIN_DEFAULT_EMAIL: minhnbnt@example.com
+      PGADMIN_DEFAULT_PASSWORD: 12345678
+      PGADMIN_CONFIG_SERVER_MODE: False
+
+    ports:
+      - 8001:80
+
+    depends_on:
+      - postgres
 
 volumes:
   postgres_data:

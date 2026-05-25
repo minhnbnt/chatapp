@@ -2,17 +2,17 @@ import logging
 import re
 import subprocess
 import tempfile
-from threading import Lock
 from pathlib import Path
 
-import whisper
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from groq import Groq
 from pydantic import BaseModel
 
 LOGGER = logging.getLogger("whisper-service")
 logging.basicConfig(level=logging.INFO)
 
 import os
+
 
 def get_env(key: str, default: str | None = None) -> str | None:
     try:
@@ -26,27 +26,15 @@ def get_env(key: str, default: str | None = None) -> str | None:
         return os.getenv(key, default)
 
 
-WHISPER_MODEL = get_env("WHISPER_MODEL", "small").strip() or "small"
-WHISPER_CACHE_DIR = (get_env("WHISPER_CACHE_DIR") or "/cache/whisper").strip() or "/cache/whisper"
+GROQ_API_KEY = get_env("GROQ_API_KEY", "")
+GROQ_MODEL = get_env("GROQ_WHISPER_MODEL", "whisper-large-v3-turbo").strip() or "whisper-large-v3-turbo"
+
 DEFAULT_LANGUAGE = (
     (get_env("WHISPER_DEFAULT_LANGUAGE") or get_env("WHISPER_LANGUAGE") or "auto")
     .strip()
     .lower()
 )
 MAX_AUDIO_SIZE_BYTES = int(get_env("WHISPER_MAX_AUDIO_SIZE_BYTES", "12582912"))
-WHISPER_FP16 = get_env("WHISPER_FP16", "false").strip().lower() == "true"
-
-MULTILINGUAL_INITIAL_PROMPT = (
-    "This is a chat voice message. "
-    "The language may be Vietnamese, English, or Japanese. "
-    "Transcribe exactly in the original language."
-)
-
-LANGUAGE_INITIAL_PROMPTS = {
-    "vi": "This is a Vietnamese chat voice message. Transcribe exactly with proper diacritics.",
-    "en": "This is an English chat voice message. Transcribe exactly as spoken.",
-    "ja": "This is a Japanese chat voice message. Transcribe exactly as spoken.",
-}
 
 SUPPORTED_LANGUAGE_CODES = {"vi", "en", "ja"}
 
@@ -61,11 +49,22 @@ LANGUAGE_ALIASES = {
     "japanese": "ja",
 }
 
+MULTILINGUAL_INITIAL_PROMPT = (
+    "This is a chat voice message. "
+    "The language may be Vietnamese, English, or Japanese. "
+    "Transcribe exactly in the original language."
+)
+
+LANGUAGE_INITIAL_PROMPTS = {
+    "vi": "This is a Vietnamese chat voice message. Transcribe exactly with proper diacritics.",
+    "en": "This is an English chat voice message. Transcribe exactly as spoken.",
+    "ja": "This is a Japanese chat voice message. Transcribe exactly as spoken.",
+}
+
 _AUDIO_NAME_RE = re.compile(r"[^a-zA-Z0-9._-]")
 
-app = FastAPI(title="Whisper Speech To Text", version="1.0.0")
-_model = None
-_model_lock = Lock()
+app = FastAPI(title="Whisper Speech To Text (Groq)", version="2.0.0")
+_groq_client: Groq | None = None
 
 
 class SpeechToTextResponse(BaseModel):
@@ -77,50 +76,35 @@ class HealthResponse(BaseModel):
     model: str
 
 
+def _get_groq_client() -> Groq:
+    global _groq_client
+    if _groq_client is not None:
+        return _groq_client
+
+    api_key = GROQ_API_KEY
+    if not api_key:
+        raise HTTPException(
+            status_code=500,
+            detail="GROQ_API_KEY environment variable is not set",
+        )
+
+    _groq_client = Groq(api_key=api_key)
+    LOGGER.info("Groq client initialized (model: %s)", GROQ_MODEL)
+    return _groq_client
+
+
 @app.on_event("startup")
-def load_model() -> None:
-    _get_model()
-
-
-def _get_model():
-    global _model
-    if _model is not None:
-        return _model
-
-    with _model_lock:
-        if _model is None:
-            cache_dir = Path(WHISPER_CACHE_DIR)
-            cache_dir.mkdir(parents=True, exist_ok=True)
-
-            LOGGER.info("Loading Whisper model: %s (cache: %s)", WHISPER_MODEL, cache_dir)
-            _model = _load_model_with_cache_recovery(cache_dir)
-            LOGGER.info("Whisper model loaded")
-
-    return _model
-
-
-def _load_model_with_cache_recovery(cache_dir: Path):
-    try:
-        return whisper.load_model(WHISPER_MODEL, download_root=str(cache_dir))
-    except RuntimeError as exc:
-        detail = str(exc).lower()
-        if "checksum" not in detail and "sha256" not in detail:
-            raise
-
-        LOGGER.warning("Whisper cache checksum mismatch detected, clearing cache and retrying once")
-        _clear_cached_model_file(cache_dir)
-        return whisper.load_model(WHISPER_MODEL, download_root=str(cache_dir))
-
-
-def _clear_cached_model_file(cache_dir: Path) -> None:
-    candidate = cache_dir / f"{WHISPER_MODEL}.pt"
-    if candidate.exists():
-        candidate.unlink(missing_ok=True)
+def startup() -> None:
+    if GROQ_API_KEY:
+        _get_groq_client()
+        LOGGER.info("Groq Whisper service ready (model: %s)", GROQ_MODEL)
+    else:
+        LOGGER.warning("GROQ_API_KEY is not set — transcription will fail until it is configured")
 
 
 @app.get("/health", response_model=HealthResponse)
 def health() -> HealthResponse:
-    return HealthResponse(status="ok", model=WHISPER_MODEL)
+    return HealthResponse(status="ok", model=GROQ_MODEL)
 
 
 @app.post("/speech-to-text", response_model=SpeechToTextResponse)
@@ -160,36 +144,47 @@ async def speech_to_text(
         if total_size == 0:
             raise HTTPException(status_code=400, detail="audio file is empty")
 
+        # Convert to WAV for consistent input to Groq API
         normalized_audio = Path(tmp) / "normalized.wav"
         _convert_to_wav(source_path, normalized_audio)
 
-        decode_options = {
-            "task": "transcribe",
-            "fp16": WHISPER_FP16,
-            "temperature": 0.0,
-        }
-
-        if normalized_language is not None:
-            decode_options["language"] = normalized_language
-
-        if normalized_prompt:
-            decode_options["initial_prompt"] = normalized_prompt
-        elif normalized_language is None:
-            decode_options["initial_prompt"] = MULTILINGUAL_INITIAL_PROMPT
-        elif normalized_language in LANGUAGE_INITIAL_PROMPTS:
-            decode_options["initial_prompt"] = LANGUAGE_INITIAL_PROMPTS[normalized_language]
+        # Build the initial prompt
+        initial_prompt = normalized_prompt
+        if not initial_prompt:
+            if normalized_language is None:
+                initial_prompt = MULTILINGUAL_INITIAL_PROMPT
+            elif normalized_language in LANGUAGE_INITIAL_PROMPTS:
+                initial_prompt = LANGUAGE_INITIAL_PROMPTS[normalized_language]
 
         try:
-            model = _get_model()
-            result = model.transcribe(str(normalized_audio), **decode_options)
+            client = _get_groq_client()
+
+            with open(normalized_audio, "rb") as audio_file:
+                transcription_kwargs = {
+                    "file": ("normalized.wav", audio_file.read()),
+                    "model": GROQ_MODEL,
+                    "temperature": 0,
+                    "response_format": "verbose_json",
+                }
+
+                if normalized_language is not None:
+                    transcription_kwargs["language"] = normalized_language
+
+                if initial_prompt:
+                    transcription_kwargs["prompt"] = initial_prompt
+
+                transcription = client.audio.transcriptions.create(**transcription_kwargs)
+
+        except HTTPException:
+            raise
         except Exception as exc:
-            LOGGER.exception("Whisper transcription failed")
+            LOGGER.exception("Groq Whisper transcription failed")
             raise HTTPException(
                 status_code=502,
                 detail=f"whisper transcription failed: {exc}",
             )
 
-        text = str(result.get("text", "")).strip()
+        text = (transcription.text or "").strip()
         return SpeechToTextResponse(text=text)
 
 
